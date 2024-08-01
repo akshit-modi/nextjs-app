@@ -46,6 +46,7 @@ jobs:
     name: "Deploy"
     runs-on: "ubuntu-latest"
     timeout-minutes: 30
+    needs: BUILD
     steps:
     - name: Checkout qa repo
       id: checkout-code
