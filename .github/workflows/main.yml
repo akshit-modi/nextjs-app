@@ -1,0 +1,68 @@
+name: NextJS application
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - .github/workflows/main.yml
+  workflow_dispatch:
+
+env:
+  REGISTRY: demo
+  PROJECT_NAME:  nextjsdemoproject
+  RESOURCE_GROUP: project
+
+permissions:
+  id-token: write
+  contents: read
+  actions: read
+
+jobs:
+  BUILD:
+    name: "Build"
+    runs-on: "ubuntu-latest"
+    timeout-minutes: 15
+    steps:
+    - name: "Checkout Code"
+      id: checkout
+      uses: "actions/checkout@v4"
+
+    - name: Azure Login
+      id: azure login
+      uses: azure/login@v2
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Build image and push to ACR
+      id: build-image
+      uses: azure/CLI@v2
+      with:
+        azcliversion: latest
+        inlineScript: |
+          az configure --defaults acr=${{ env.PROJECT_NAME }}
+          az acr build -g ${{ env.RESOURCE_GROUP }} -t  ${{ env.REGISTRY }}:${{ github.sha }} .
+
+  DEPLOY:
+    name: "Deploy"
+    runs-on: "ubuntu-latest"
+    timeout-minutes: 30
+    steps:
+    - name: Checkout qa repo
+      id: checkout-code
+      uses: actions/checkout@v4
+      with:
+        repository: akhiit07/deploy-aks-service
+
+    - name: Install Helm
+      id: helm-install
+      uses: azure/setup-helm@v4
+      env:
+        GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+    - name: Update Helm Chart Values
+      id: deploy-new-chart
+      uses: Nextdoor/helm-set-image-tag-action@main
+      with:
+        values_files: demo-app/values.yaml
+        commit_branch: main
+        commit_tag: ${{ github.sha }}
